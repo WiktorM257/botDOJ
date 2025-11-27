@@ -4,11 +4,14 @@ import requests
 import os
 
 # === CONFIG ===
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("TOKEN")     # Pobieranie tokena z Railway
 API_URL = "https://doj-backend-ac2o.onrender.com/api/add_schedule"
 # =====================
 
+# INTENTY (WYMAGANE)
 intents = discord.Intents.default()
+intents.message_content = True   # <<< OBOWIĄZKOWE DLA !komend
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
@@ -57,5 +60,3 @@ async def rozprawa(
 
 
 bot.run(TOKEN)
-
-
