@@ -4,7 +4,7 @@ import requests
 import os
 
 # === CONFIG ===
-TOKEN = "MTQ0MjA3NjkwMjAwODU1MzQ4Mg.G3aOwU.jheowgR1NyVnzlYpzsTVDN5b0DY8Lj5CfDl8WA"
+TOKEN = os.getenv("TOKEN")
 API_URL = "https://doj-backend-ac2o.onrender.com/api/add_schedule"
 # =====================
 
@@ -57,3 +57,4 @@ async def rozprawa(
 
 
 bot.run(TOKEN)
+
