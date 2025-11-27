@@ -33,21 +33,29 @@ async def on_ready():
 # -------------------------
 @bot.slash_command(
     name="rozprawa",
-    description="Dodaje nową rozprawę DOJ"
+    description="Dodaj rozprawę do wokandy DOJ."
 )
 async def rozprawa(
-    inter: nextcord.Interaction,
-    sedzia: str,
-    prokurator: str,
-    sala: str,
-    oskarzony: str,
-    adwokat: str,
-    data: str,
-    godzina: str,
-    opis: str
+    interaction: Interaction,
+    sedzia: str = SlashOption(description="Imię i nazwisko sędziego"),
+    prokurator: str = SlashOption(description="Imię i nazwisko prokuratora"),
+    sala: str = SlashOption(description="Numer sali sądowej"),
+    oskarzony: str = SlashOption(description="Oskarżony / pozwany"),
+    adwokat: str = SlashOption(description="Adwokat"),
+    data: str = SlashOption(description="Data rozprawy (np. 28.11.2025)"),
+    godzina: str = SlashOption(description="Godzina rozprawy (np. 14:30)"),
+    strony: str = SlashOption(description="Strony sprawy, np. SA vs Kowalski"),
+    swiadkowie: str = SlashOption(
+        description="Świadkowie (oddzieleni przecinkami, np.: Jan Kowalski, Adam Nowak)",
+        required=False
+    ),
+    opis: str = SlashOption(description="Krótki opis sprawy")
 ):
 
-    await inter.response.defer()
+    await interaction.response.defer(ephemeral=True)
+
+    # Zamiana pustego testimony na "" zamiast None
+    swiadkowie = swiadkowie or ""
 
     payload = {
         "name": f"{oskarzony} - {adwokat}",
@@ -55,24 +63,27 @@ async def rozprawa(
         "prosecutor": prokurator,
         "defendant": oskarzony,
         "lawyer": adwokat,
-        "witnesses": "",
+        "witnesses": swiadkowie,
         "room": sala,
         "date": data,
         "time": godzina,
-        "parties": f"SA vs {oskarzony}",
+        "parties": strony,
         "description": opis
     }
 
     try:
-        r = requests.post(API_ADD, json=payload)
-
+        r = requests.post(API_URL, json=payload)
         if r.status_code == 200:
-            await inter.followup.send("✔ Rozprawa dodana do DOJ.")
+            await interaction.followup.send(
+                f"✔ **Dodano rozprawę:**\n"
+                f"**{strony}** o {godzina} w sali {sala}\n"
+                f"Sędzia: {sedzia}\n"
+                f"Świadkowie: {swiadkowie or 'brak'}"
+            )
         else:
-            await inter.followup.send(f"❌ Błąd API: {r.status_code}")
-
+            await interaction.followup.send(f"❌ Błąd API: {r.status_code}")
     except Exception as e:
-        await inter.followup.send(f"❌ Problem z połączeniem: {e}")
+        await interaction.followup.send(f"❌ Błąd połączenia z API: {e}")
 
 
 # -------------------------
@@ -110,4 +121,5 @@ async def usun_rozprawe(inter: nextcord.Interaction, id: int):
 
 
 bot.run(TOKEN)
+
 
