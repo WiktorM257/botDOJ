@@ -1,5 +1,5 @@
-import discord
-from discord.ext import commands
+import nextcord as discord
+from nextcord.ext import commands
 import requests
 import os
 
@@ -57,4 +57,5 @@ async def rozprawa(
 
 
 bot.run(TOKEN)
+
 
