@@ -122,8 +122,56 @@ async def usun_rozprawe(
     else:
         await inter.edit_original_message(f"❌ Błąd API: {r.status_code}")
 
+# =============================
+# Archiwizacja  Rozprawy
+# =============================
+
+@bot.slash_command(
+    name="archiwizuj",
+    description="Przenosi sprawę do archiwum z wynikiem i wyrokiem."
+)
+async def archiwizuj(
+    inter,
+    id: str,
+    wynik: str = nextcord.SlashOption(
+        name="wynik",
+        description="Wynik rozprawy",
+        choices=["winny", "niewinny", "ugoda"]
+    ),
+    wyrok: str = nextcord.SlashOption(
+        name="wyrok",
+        description="Treść wyroku"
+    ),
+    dokument: str = nextcord.SlashOption(
+        name="dokument",
+        description="Link do uzasadnienia (PDF)"
+    )
+):
+    await inter.response.defer()
+
+    payload = {
+        "id": id,
+        "result": wynik,
+        "verdict": wyrok,
+        "document": dokument
+    }
+
+    try:
+        r = requests.post("https://doj-backend-ac2o.onrender.com/api/archive_case", json=payload)
+
+        if r.status_code == 200:
+            await inter.followup.send(f"📁 Sprawa **{id}** została zarchiwizowana.\nWynik: **{wynik}**")
+        elif r.status_code == 404:
+            await inter.followup.send(f"❌ Nie znaleziono sprawy o ID **{id}**.")
+        else:
+            await inter.followup.send("❌ Błąd API podczas archiwizacji.")
+
+    except Exception as e:
+        await inter.followup.send(f"❌ Błąd serwera: {e}")
+
 
 # =============================
 # START BOT
 # =============================
 bot.run(TOKEN)
+
