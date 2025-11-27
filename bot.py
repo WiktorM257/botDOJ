@@ -22,8 +22,8 @@ bot = commands.Bot(intents=intents)
 async def on_ready():
     print(f"Slash DOJ bot online jako {bot.user}")
     try:
-        synced = await bot.sync_application_commands()
-        print(f"Zsynchronizowano {len(synced)} komend")
+        synced = await bot.sync_all_application_commands()
+        print("Slash commands zsynchronizowane.")
     except Exception as e:
         print(f"Błąd sync: {e}")
 
@@ -110,3 +110,4 @@ async def usun_rozprawe(inter: nextcord.Interaction, id: int):
 
 
 bot.run(TOKEN)
+
