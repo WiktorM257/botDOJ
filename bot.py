@@ -3,6 +3,7 @@ from nextcord.ext import commands
 from nextcord import Interaction, SlashOption
 import requests
 import os
+from datetime import datetime
 
 # =============================
 # KONFIGURACJA
@@ -11,6 +12,7 @@ TOKEN = os.getenv("TOKEN")
 API_ADD = "https://doj-backend-ac2o.onrender.com/api/add_schedule"
 API_GET = "https://doj-backend-ac2o.onrender.com/schedule.json"
 API_DELETE = "https://doj-backend-ac2o.onrender.com/api/delete_schedule"
+API_ARCHIVE = "https://doj-backend-ac2o.onrender.com/api/archive_case"
 
 intents = nextcord.Intents.default()
 bot = commands.Bot(intents=intents)
@@ -30,7 +32,7 @@ async def on_ready():
 
 
 # =============================
-# /rozprawa — dodawanie sprawy
+#  /rozprawa — dodawanie
 # =============================
 @bot.slash_command(
     name="rozprawa",
@@ -38,21 +40,25 @@ async def on_ready():
 )
 async def rozprawa(
     inter: Interaction,
-    sedzia: str = SlashOption(description="Sędzia prowadzący"),
-    prokurator: str = SlashOption(description="Prokurator"),
-    sala: str = SlashOption(description="Numer sali sądowej"),
-    oskarzony: str = SlashOption(description="Oskarżony / pozwany"),
-    adwokat: str = SlashOption(description="Adwokat"),
-    data: str = SlashOption(description="Data (np. 28.11.2025)"),
-    godzina: str = SlashOption(description="Godzina (np. 14:30)"),
-    strony: str = SlashOption(description="Strony sprawy (np. SA vs Kowalski)"),
-    swiadkowie: str = SlashOption(description="Świadkowie (oddzieleni przecinkami)", required=False),
-    opis: str = SlashOption(description="Krótki opis sprawy",required=False)
+    sedzia: str,
+    prokurator: str,
+    sala: str,
+    oskarzony: str,
+    adwokat: str,
+    data: str,         # format: 28.11.2025
+    godzina: str,      # format: 14:30
+    strony: str,
+    swiadkowie: str = "",
+    opis: str = ""
 ):
 
     await inter.response.send_message("⏳ Dodawanie rozprawy...", ephemeral=True)
 
-    swiadkowie = swiadkowie or ""
+    # 🔥 Konwersja daty na format SQL YYYY-MM-DD
+    try:
+        sql_date = datetime.strptime(data, "%d.%m.%Y").strftime("%Y-%m-%d")
+    except:
+        return await inter.edit_original_message("❌ Błędny format daty! Użyj DD.MM.YYYY")
 
     payload = {
         "name": f"{oskarzony} - {adwokat}",
@@ -62,7 +68,7 @@ async def rozprawa(
         "lawyer": adwokat,
         "witnesses": swiadkowie,
         "room": sala,
-        "date": data,
+        "date": sql_date,
         "time": godzina,
         "parties": strony,
         "description": opis
@@ -87,7 +93,7 @@ async def rozprawa(
 
 
 # =============================
-# /usun_rozprawe — usuwanie sprawy
+#  /usun_rozprawe — usuwanie
 # =============================
 @bot.slash_command(
     name="usun_rozprawe",
@@ -95,37 +101,37 @@ async def rozprawa(
 )
 async def usun_rozprawe(
     inter: Interaction,
-    id_rozprawy: int = SlashOption(description="ID rozprawy do usunięcia")
+    id_rozprawy: str = SlashOption(description="ID rozprawy (np. SA-2025-0001)")
 ):
     await inter.response.send_message("⏳ Szukam rozprawy...", ephemeral=True)
 
-    # pobierz listę
+    # Pobierz listę z SQL
     try:
         data = requests.get(API_GET).json()
     except:
         return await inter.edit_original_message("❌ Błąd pobierania danych API.")
 
-    # znajdź
-    znalezione = next((t for t in data if t["id"] == id_rozprawe), None)
+    # 🔥 Poprawne porównanie ID jako string
+    znalezione = next((t for t in data if t["id"] == id_rozprawy), None)
 
     if not znalezione:
-        return await inter.edit_original_message("❌ Nie znaleziono rozprawy o podanym ID.")
+        return await inter.edit_original_message(f"❌ Nie znaleziono rozprawy o ID **{id_rozprawy}**.")
 
-    # usuń
+    # Usuń
     try:
-        r = requests.post(API_DELETE, json={"id": id_rozprawe})
+        r = requests.post(API_DELETE, json={"id": id_rozprawy})
     except Exception as e:
         return await inter.edit_original_message(f"❌ Błąd API: {e}")
 
     if r.status_code == 200:
-        await inter.edit_original_message(f"✔ Usunięto rozprawę o ID **{id_rozprawe}**.")
+        await inter.edit_original_message(f"✔ Usunięto rozprawę o ID **{id_rozprawy}**.")
     else:
         await inter.edit_original_message(f"❌ Błąd API: {r.status_code}")
 
-# =============================
-# Archiwizacja  Rozprawy
-# =============================
 
+# =============================
+#  /archiwizuj — archiwizacja
+# =============================
 @bot.slash_command(
     name="archiwizuj",
     description="Przenosi sprawę do archiwum z wynikiem i wyrokiem."
@@ -138,14 +144,8 @@ async def archiwizuj(
         description="Wynik rozprawy",
         choices=["winny", "niewinny", "ugoda"]
     ),
-    wyrok: str = nextcord.SlashOption(
-        name="wyrok",
-        description="Treść wyroku"
-    ),
-    dokument: str = nextcord.SlashOption(
-        name="dokument",
-        description="Link do uzasadnienia (PDF)"
-    )
+    wyrok: str = nextcord.SlashOption(name="wyrok", description="Treść wyroku"),
+    dokument: str = nextcord.SlashOption(name="dokument", description="Link do PDF")
 ):
     await inter.response.defer()
 
@@ -156,22 +156,17 @@ async def archiwizuj(
         "document": dokument
     }
 
-    try:
-        r = requests.post("https://doj-backend-ac2o.onrender.com/api/archive_case", json=payload)
+    r = requests.post(API_ARCHIVE, json=payload)
 
-        if r.status_code == 200:
-            await inter.followup.send(f"📁 Sprawa **{id}** została zarchiwizowana.\nWynik: **{wynik}**")
-        elif r.status_code == 404:
-            await inter.followup.send(f"❌ Nie znaleziono sprawy o ID **{id}**.")
-        else:
-            await inter.followup.send("❌ Błąd API podczas archiwizacji.")
-
-    except Exception as e:
-        await inter.followup.send(f"❌ Błąd serwera: {e}")
+    if r.status_code == 200:
+        await inter.followup.send(f"📁 Sprawa **{id}** została zarchiwizowana.")
+    elif r.status_code == 404:
+        await inter.followup.send(f"❌ Nie znaleziono sprawy o ID **{id}**.")
+    else:
+        await inter.followup.send("❌ Błąd API podczas archiwizacji.")
 
 
 # =============================
 # START BOT
 # =============================
 bot.run(TOKEN)
-
